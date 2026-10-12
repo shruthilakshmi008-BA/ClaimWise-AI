@@ -41,13 +41,18 @@ public sealed class EvidenceAssessor(EvidenceOptions? options = null)
 
         // Identifier-like terms (procedure/diagnosis codes) sharpen ranking but are not what the question is about:
         // a code missing from the policies must not, on its own, make a well-covered topic look unsupported.
-        var queryTerms = TextAnalysis.Terms(query).Select(DomainSynonyms.Fold).Where(t => !TextAnalysis.IsCode(t)).Distinct().ToList();
+        var queryGroups = TextAnalysis.TermGroups(query)
+            .Select(g => g.Select(DomainSynonyms.Fold).Where(t => !TextAnalysis.IsCode(t)).Distinct().ToArray())
+            .Where(g => g.Length > 0)
+            .DistinctBy(g => string.Join('|', g.Order()))
+            .ToList();
         var union = supporting
             .SelectMany(p => TextAnalysis.Terms(p.Chunk.IndexText).Select(DomainSynonyms.Fold))
             .ToHashSet();
-        var total = queryTerms.Sum(index.SmoothedIdf);
-        var coverage = total == 0 ? 0 : queryTerms.Where(union.Contains).Sum(index.SmoothedIdf) / total;
-        var missing = queryTerms.Where(t => !union.Contains(t)).OrderByDescending(index.SmoothedIdf).Take(6).ToList();
+        double GroupWeight(string[] g) => g.Max(index.SmoothedIdf);
+        var total = queryGroups.Sum(GroupWeight);
+        var coverage = total == 0 ? 0 : queryGroups.Where(g => g.Any(union.Contains)).Sum(GroupWeight) / total;
+        var missing = queryGroups.Where(g => !g.Any(union.Contains)).OrderByDescending(GroupWeight).Take(6).Select(g => g[0]).ToList();
 
         if (top < _o.MinTopScore)
             reasons.Add($"The best passage scored {top:0.00} for relevance, below the {_o.MinTopScore:0.00} needed.");

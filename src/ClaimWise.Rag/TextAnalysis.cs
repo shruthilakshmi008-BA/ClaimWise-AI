@@ -46,6 +46,22 @@ public static partial class TextAnalysis
         return terms;
     }
 
+    /// <summary>
+    /// Like <see cref="Terms"/> but one entry per source word: a hyphenated word such as "co-payment" is a single group
+    /// whose alternatives are the whole word and its parts. Coverage scoring counts a group once, satisfied by any
+    /// alternative, so compound words do not count twice.
+    /// </summary>
+    public static List<string[]> TermGroups(string text, bool removeStopWords = true)
+    {
+        var groups = new List<string[]>();
+        foreach (Match m in TokenPattern().Matches(text))
+        {
+            var variants = Terms(m.Value, removeStopWords);
+            if (variants.Count > 0) groups.Add(variants.Distinct().ToArray());
+        }
+        return groups;
+    }
+
     /// <summary>True for identifier-like tokens (contain a digit and a letter, or a digit with - or .).</summary>
     public static bool IsCode(string token) =>
         token.Any(char.IsDigit) && (token.Any(char.IsLetter) || token.Contains('-') || token.Contains('.')) && token.Length >= 3;

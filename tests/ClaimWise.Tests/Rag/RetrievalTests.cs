@@ -20,6 +20,29 @@ public class TextAnalysisTests
     }
 }
 
+public class TermGroupTests
+{
+    [Fact]
+    public void CompoundWords_AreOneGroupWithAlternatives_SoTheyAreNotCountedTwice()
+    {
+        var groups = TextAnalysis.TermGroups("annual limit and co-payment");
+        Assert.Equal(3, groups.Count);                                   // annual | limit | co-payment (+ its part)
+        Assert.Contains("payment", groups[2]);
+        Assert.Contains("co-payment", groups[2]);
+    }
+
+    [Fact]
+    public void FoldedIdf_IsComputedOverTheFoldedVocabulary()
+    {
+        // "co-payment" folds to the "costshare" head word. Looking that up in an unfolded index used to make it look
+        // like an unseen (maximally rare) term and distorted every coverage score.
+        var index = SampleCorpus.Build();
+        var folded = DomainSynonyms.Fold(TextAnalysis.Terms("co-payment")[0]);
+        Assert.Equal("costshare", folded);
+        Assert.True(index.SmoothedIdf(folded) < index.SmoothedIdf("zzzneverseen"));
+    }
+}
+
 public class Bm25Tests
 {
     [Fact]
@@ -180,6 +203,22 @@ public class RetrievalEvaluationTests(ITestOutputHelper output)
         Assert.NotNull(top.VectorScore);
         Assert.InRange(top.RerankScore, 0, 1);
         Assert.True(result.Passages.Zip(result.Passages.Skip(1)).All(p => p.First.RerankScore >= p.Second.RerankScore));
+    }
+
+    [Fact]
+    public async Task TwoFacetQuestion_RanksTheClausesAboutBothFacetsAboveUnrelatedCopaymentClauses()
+    {
+        // Regression from end-to-end testing: for "annual outpatient limit and co-payment" the reranker pushed the
+        // inpatient/pharmacy co-payment clauses (3.3, 4.2) above the outpatient limit clause (2.1).
+        var index = SampleCorpus.Build("gold-plan-policy-2024.md");
+        var result = await SampleCorpus.Retriever(new RetrievalOptions { FinalTopK = 8 })
+            .SearchAsync(index, "annual outpatient limit and co-payment Outpatient", CancellationToken.None);
+
+        int Rank(string clause) => result.Passages.ToList().FindIndex(p => p.Chunk.ClauseRef == clause);
+        Assert.InRange(Rank("2.1"), 0, 2);
+        Assert.InRange(Rank("2.2"), 0, 3);
+        Assert.True(Rank("2.1") < Rank("3.3") || Rank("3.3") < 0, "2.1 should outrank the inpatient co-payment clause");
+        Assert.True(Rank("2.1") < Rank("4.2") || Rank("4.2") < 0, "2.1 should outrank the pharmacy co-payment clause");
     }
 
     [Fact]
