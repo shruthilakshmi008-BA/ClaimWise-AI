@@ -48,6 +48,11 @@ builder.Services.AddScoped<IPolicyService, PolicyService>();
 builder.Services.AddScoped<IPolicySearchService, PolicySearchService>();
 builder.Services.AddScoped<IAiSummaryService, AiSummaryService>();
 
+// Read lazily (not at registration) so configuration added later, e.g. by integration tests, is honoured.
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IConfiguration>().GetSection(ClaimFileOptions.SectionName).Get<ClaimFileOptions>() ?? new ClaimFileOptions());
+builder.Services.AddSingleton<IClaimFileStore, LocalClaimFileStore>();
+builder.Services.AddScoped<IClaimDocumentService, ClaimDocumentService>();
+
 // Throttle the expensive endpoints (provider calls, embedding, uploads) per client address.
 var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 30);
 builder.Services.AddRateLimiter(o =>

@@ -8,7 +8,7 @@ namespace ClaimWise.Api.Controllers;
 [ApiController]
 [Route("api/claims")]
 [Produces("application/json")]
-public class ClaimsController(IClaimService claims, IAiSummaryService summaries) : ControllerBase
+public class ClaimsController(IClaimService claims, IAiSummaryService summaries, IClaimDocumentService documents) : ControllerBase
 {
     /// <summary>Submit a new claim (claim intake).</summary>
     [HttpPost]
@@ -49,6 +49,30 @@ public class ClaimsController(IClaimService claims, IAiSummaryService summaries)
     {
         var doc = await claims.AddDocumentAsync(id, request, ct);
         return Created($"/api/claims/{id}", doc);
+    }
+
+    /// <summary>Upload the supporting file for a required document (pdf, png, jpg, docx or txt, up to 10 MB).</summary>
+    [HttpPost("{id:int}/documents/upload")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    [EnableRateLimiting("upload")]
+    [ProducesResponseType<DocumentDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType)]
+    public async Task<ActionResult<DocumentDto>> UploadDocument(int id, [FromForm] UploadClaimDocumentRequest request, CancellationToken ct)
+    {
+        var doc = await documents.UploadAsync(id, request, ct);
+        return Created($"/api/claims/{id}/documents/{doc.Id}/file", doc);
+    }
+
+    /// <summary>Download an uploaded claim document. Always served as an attachment.</summary>
+    [HttpGet("{id:int}/documents/{documentId:int}/file")]
+    [ProducesResponseType<FileResult>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DownloadDocument(int id, int documentId, CancellationToken ct)
+    {
+        var (content, fileName, contentType) = await documents.OpenAsync(id, documentId, ct);
+        Response.Headers.ContentSecurityPolicy = "default-src 'none'; sandbox";
+        return File(content, contentType, fileName);
     }
 
     /// <summary>Move a claim to a new status. Decisions are always made by a named human reviewer.</summary>

@@ -343,6 +343,10 @@ namespace ClaimWise.Api.Data.Migrations.Sqlite
                     b.Property<int>("ClaimId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DocumentType")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -354,6 +358,17 @@ namespace ClaimWise.Api.Data.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StoredFileName")
+                        .HasMaxLength(80)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

@@ -361,6 +361,10 @@ namespace ClaimWise.Api.Data.Migrations.Postgres
                     b.Property<int>("ClaimId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("DocumentType")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -373,6 +377,17 @@ namespace ClaimWise.Api.Data.Migrations.Postgres
 
                     b.Property<DateTime>("ReceivedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredFileName")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.HasKey("Id");
 

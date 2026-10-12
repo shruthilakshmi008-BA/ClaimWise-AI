@@ -63,6 +63,9 @@ public abstract class ClaimWiseDbContext(DbContextOptions options) : DbContext(o
         {
             e.Property(d => d.FileName).HasMaxLength(200).IsRequired();
             e.Property(d => d.DocumentType).HasConversion<string>().HasMaxLength(30);
+            e.Property(d => d.Sha256).HasMaxLength(64);
+            e.Property(d => d.ContentType).HasMaxLength(100);
+            e.Property(d => d.StoredFileName).HasMaxLength(80);
             e.HasOne<Claim>().WithMany(c => c.Documents).HasForeignKey(d => d.ClaimId).OnDelete(DeleteBehavior.Cascade);
         });
 

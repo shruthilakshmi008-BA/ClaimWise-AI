@@ -117,7 +117,17 @@ public sealed record ClaimSummaryDto(
     ClaimStatus Status,
     DateTime SubmittedAt);
 
-public sealed record DocumentDto(int Id, DocumentType DocumentType, string FileName, DateTime ReceivedAt);
+public sealed record DocumentDto(
+    int Id, DocumentType DocumentType, string FileName, DateTime ReceivedAt, long? SizeBytes = null, string? Sha256 = null, bool HasFile = false);
+
+public sealed class UploadClaimDocumentRequest
+{
+    [Required]
+    public DocumentType? DocumentType { get; init; }
+
+    [Required]
+    public IFormFile? File { get; init; }
+}
 
 public sealed record ValidationDto(
     bool IsComplete,

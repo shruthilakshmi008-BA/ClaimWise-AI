@@ -300,6 +300,9 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
         }
     }
 
+    internal static DocumentDto ToDocumentDto(ClaimDocument d) =>
+        new(d.Id, d.DocumentType, d.FileName, d.ReceivedAt, d.SizeBytes, d.Sha256, d.StoredFileName is not null);
+
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
 
@@ -310,7 +313,7 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
         c.Id, c.ClaimNumber, c.PatientName, c.MemberId, c.PolicyNumber, c.ProviderName,
         c.ClaimType, c.DiagnosisCode, c.ProcedureCode, c.AmountClaimed, c.ServiceDate,
         c.Status, c.SubmittedAt, c.UpdatedAt, c.Version, c.ReviewerName, c.ReviewerNote,
-        c.Documents.OrderBy(d => d.Id).Select(d => new DocumentDto(d.Id, d.DocumentType, d.FileName, d.ReceivedAt)).ToList(),
+        c.Documents.OrderBy(d => d.Id).Select(ToDocumentDto).ToList(),
         ToValidationDto(ClaimRules.Validate(c)),
         ClaimWorkflow.AllowedNext(c.Status));
 }

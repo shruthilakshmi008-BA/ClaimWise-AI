@@ -24,3 +24,6 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Uploaded claim documents (synthetic data only, still never commit)
+claim-files/
