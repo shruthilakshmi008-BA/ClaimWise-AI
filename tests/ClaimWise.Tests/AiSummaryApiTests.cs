@@ -358,3 +358,32 @@ public class LlmPathTests(ScriptedGeneratorFactory factory) : ClaimWorkflowTestB
         Assert.Contains((await AuditAsync(claim.Id)), a => a.Action == "AiSummaryGenerated" && a.Details.StartsWith("Failed"));
     }
 }
+
+public class RetrievalQueryTests(ClaimWiseFactory factory) : ClaimWorkflowTestBase(factory), IClassFixture<ClaimWiseFactory>
+{
+    [Fact]
+    public async Task ATypedQuestion_IsNotDrownedByTheClaimsProcedureCode()
+    {
+        // Regression: appending the claim's procedure code (PRC-101) to every query let the rare code token outrank the
+        // clauses the reviewer asked about. The reviewer asked about the annual limit; clause 2.1 must be retrieved.
+        await UploadSamplesAsync("gold-plan-policy-2024.md", "gold-plan-amendment-2025.md", "basic-plan-policy-2024.md");
+        var claim = await CreateClaimAsync();   // procedure code PRC-101
+
+        var summary = await GenerateOkAsync(claim.Id, "annual outpatient limit and co-payment");
+
+        Assert.Contains(summary.Passages, p => p.ClauseRef == "2.1");
+        Assert.Contains(summary.Passages.Take(3), p => p.ClauseRef is "2.1" or "2.2");
+    }
+
+    [Fact]
+    public async Task WithoutAQuestion_TheOverviewQueryUsesTheProcedureCode()
+    {
+        await UploadSamplesAsync("gold-plan-policy-2024.md");
+        var claim = await CreateClaimAsync();
+
+        var summary = await GenerateOkAsync(claim.Id);
+
+        Assert.Contains("PRC-101", summary.Question + " " + string.Join(' ', summary.Passages.Select(p => p.Text)));
+        Assert.Equal(AiSummaryStatus.Answered, summary.Status);
+    }
+}

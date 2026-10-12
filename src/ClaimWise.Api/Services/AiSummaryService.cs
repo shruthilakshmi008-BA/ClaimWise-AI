@@ -51,8 +51,9 @@ public sealed class AiSummaryService(
         var context = new ClaimContext(claim.ClaimNumber, claim.ClaimType.ToString(), claim.DiagnosisCode, claim.ProcedureCode,
             claim.AmountClaimed, claim.ServiceDate.ToString("yyyy-MM-dd"), claim.PolicyNumber, missing);
 
-        var question = string.IsNullOrWhiteSpace(request.Question) ? DefaultQuestion(claim) : request.Question.Trim();
-        var retrievalQuery = BuildRetrievalQuery(claim, question);
+        var customQuestion = !string.IsNullOrWhiteSpace(request.Question);
+        var question = customQuestion ? request.Question!.Trim() : DefaultQuestion(claim);
+        var retrievalQuery = BuildRetrievalQuery(claim, question, customQuestion);
 
         var index = await cache.GetScopedAsync(request.DocumentIds, ct);
         var retrieval = await retriever.SearchAsync(index, retrievalQuery, ct, options.Value.Retrieval);
@@ -135,11 +136,14 @@ public sealed class AiSummaryService(
     }
 
     internal static string DefaultQuestion(Claim claim) =>
-        $"{claim.ClaimType} benefits, annual limit, co-payment, exclusions and required documents";
+        $"{claim.ClaimType} benefit annual limit and co-payment";
 
-    // Codes go into the retrieval query so exact code matches rank first; the assessor ignores them for coverage.
-    internal static string BuildRetrievalQuery(Claim claim, string question) =>
-        string.Join(' ', new[] { question, claim.ClaimType.ToString(), claim.ProcedureCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    // A reviewer's own question is searched as written (plus the claim type). The procedure code is added only to the
+    // default claim-overview question: a rare code token otherwise dominates keyword ranking and pushes the passages
+    // the reviewer actually asked about out of the results (seen in end-to-end testing). A reviewer who wants code
+    // matching can type the code in the question. The assessor ignores codes for topical coverage.
+    internal static string BuildRetrievalQuery(Claim claim, string question, bool customQuestion) =>
+        string.Join(' ', new[] { question, claim.ClaimType.ToString(), customQuestion ? null : claim.ProcedureCode }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     private AiSummary ToEntity(Claim claim, GenerateSummaryRequest request, string question, string retrievalQuery,
         GroundedSummaryResult result, DateTime now)
