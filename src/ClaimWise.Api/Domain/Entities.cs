@@ -19,6 +19,9 @@ public class Claim
     public string? ReviewerName { get; set; }
     public string? ReviewerNote { get; set; }
 
+    /// <summary>Optimistic-concurrency token. Incremented on every update so concurrent edits are detected.</summary>
+    public int Version { get; set; }
+
     public List<ClaimDocument> Documents { get; set; } = new();
     public List<AuditEntry> AuditEntries { get; set; } = new();
 }

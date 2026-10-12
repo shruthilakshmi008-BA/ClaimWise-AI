@@ -40,6 +40,8 @@ public class ClaimWiseDbContext(DbContextOptions<ClaimWiseDbContext> options) : 
             // Fine for a demo with 2-decimal amounts; PostgreSQL's numeric type avoids this limit.
             e.Property(c => c.AmountClaimed).HasConversion<double>();
 
+            e.Property(c => c.Version).IsConcurrencyToken();
+
             e.HasIndex(c => c.Status);
             e.HasIndex(c => c.SubmittedAt);
         });
