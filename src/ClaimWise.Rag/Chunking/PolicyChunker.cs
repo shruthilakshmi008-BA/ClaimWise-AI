@@ -185,6 +185,16 @@ public sealed partial class PolicyChunker(ChunkingOptions? options = null)
         foreach (var unit in units)
         {
             var words = TextAnalysis.WordCount(unit.Text);
+
+            // A chunk never spans a page break, so its page number (used in citations) is exact.
+            if (buffer.Count > 0 && buffer[^1].Page != unit.Page)
+            {
+                var finished = Emit();
+                if (finished is not null) yield return finished;
+                buffer = [];
+                bufferWords = 0;
+            }
+
             if (bufferWords + words > _options.MaxWords && buffer.Count > 0)
             {
                 var chunk = Emit();

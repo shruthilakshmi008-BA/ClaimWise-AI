@@ -153,6 +153,19 @@ public class ChunkerTests
     }
 
     [Fact]
+    public void Chunker_NeverLetsAChunkSpanAPageBreak()
+    {
+        var doc = new ExtractedDocument([
+            new ExtractedPage(1, "Opening paragraph on page one."),
+            new ExtractedPage(2, "Continuation paragraph on page two.")]);
+
+        var chunks = new PolicyChunker().Chunk(doc);
+
+        Assert.Equal(2, chunks.Count);
+        Assert.Equal([1, 2], chunks.Select(c => c.PageNumber));
+    }
+
+    [Fact]
     public void Chunker_OffsetsPointBackIntoTheSourceText()
     {
         var text = "## 1. Scope\n\n1.1 The plan covers outpatient care.\n\n1.2 Dental care is excluded.";
