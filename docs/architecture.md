@@ -1,36 +1,41 @@
 # ClaimWise AI: Architecture
 
-Diagrams are Mermaid; GitHub and the VS Code Markdown preview (with a Mermaid extension) render them. Items marked **planned** do not exist yet.
+Diagrams are Mermaid; GitHub and the VS Code Markdown preview (with a Mermaid extension) render them. For retrieval and grounding details see [rag.md](rag.md); for endpoints see [api.md](api.md).
 
 ## 1. System context
 
 ```mermaid
 flowchart LR
-    R[Claims reviewer] -->|browser| FE[React frontend - planned Stage 1b]
+    R[Claims reviewer] -->|browser| FE[React + TypeScript UI]
     FE -->|HTTP JSON| API[ASP.NET Core Web API]
-    R -.->|Scalar docs / PowerShell| API
-    API --> DB[(SQLite)]
-    API -.->|planned Stage 2| AI[Retrieval + LLM provider]
+    API --> DB[(SQLite or PostgreSQL)]
+    API --> FS[(claim-files on disk)]
+    API --> RAG[ClaimWise.Rag library]
+    RAG -.->|optional| EMB[Embedding provider<br/>OpenAI-compatible]
+    RAG -.->|optional| LLM[Language model<br/>OpenAI-compatible or Anthropic]
 ```
 
-## 2. Components inside the API (implemented)
+## 2. Components
 
 ```mermaid
 flowchart TD
-    C[ClaimsController<br/>HTTP endpoints] --> S[ClaimService<br/>use cases + audit]
-    S --> D[Domain<br/>ClaimRules, ClaimWorkflow]
-    S --> X[ClaimWiseDbContext<br/>EF Core]
-    X --> DB[(SQLite file)]
-    C -. validation .-> V[DTO attributes<br/>IValidatableObject]
-    E[ApiExceptionHandler] -. maps errors .-> C
+    C[Controllers<br/>Claims, Policies, Ai] --> S[Services<br/>ClaimService, ClaimDocumentService,<br/>PolicyService, AiSummaryService]
+    S --> D[Domain rules<br/>ClaimRules, ClaimWorkflow]
+    S --> X[EF Core DbContext<br/>Sqlite / Postgres contexts + migrations]
+    S --> G[GroundedSummaryPipeline]
+    S --> H[HybridRetriever + PolicyIndexCache]
+    G --> V[CitationValidator, EvidenceAssessor, ConflictDetector]
+    G --> Gen[ISummaryGenerator<br/>Extractive or LlmSummaryGenerator]
+    Gen --> P[ILlmProvider]
+    H --> E[IEmbeddingProvider, IReranker]
+    X --> DB[(database)]
+    EH[ApiExceptionHandler] -. maps errors .-> C
 ```
 
-Responsibilities:
-
-- **Controller:** receives HTTP, returns status codes. No business logic.
-- **Service:** orchestrates a use case (load claim, apply rule, write audit, save).
-- **Domain:** pure C# rules with no framework dependency, which is why they are easy to unit test.
-- **DbContext:** the database mapping. EF Core's `DbContext` already acts as a unit of work, so there is no extra repository layer (see decisions).
+* **Controllers**: HTTP only. **Services**: use cases, transactions, audit entries. **Domain**: pure rules, no framework.
+* **ClaimWise.Rag**: no EF Core or ASP.NET dependency; every provider sits behind an interface so it can be replaced or faked.
+* The DbContext is provider-neutral; `SqliteClaimWiseDbContext` / `PostgresClaimWiseDbContext` exist so each provider owns its
+  migrations (see decisions D4).
 
 ## 3. Request flow: changing a claim's status
 
@@ -61,6 +66,10 @@ sequenceDiagram
 erDiagram
     CLAIM ||--o{ CLAIM_DOCUMENT : has
     CLAIM ||--o{ AUDIT_ENTRY : records
+    CLAIM ||--o{ AI_SUMMARY : has
+    AI_SUMMARY ||--o{ AI_SUMMARY_STATEMENT : contains
+    AI_SUMMARY ||--o{ AI_SUMMARY_PASSAGE : "snapshots"
+    POLICY_DOCUMENT ||--o{ POLICY_CHUNK : "split into"
     CLAIM {
         int Id PK
         string ClaimNumber UK
@@ -76,6 +85,7 @@ erDiagram
         string Status
         datetime SubmittedAt
         datetime UpdatedAt
+        int Version "concurrency token"
         string ReviewerName
         string ReviewerNote
     }
@@ -85,6 +95,40 @@ erDiagram
         string DocumentType
         string FileName
         datetime ReceivedAt
+    }
+    AI_SUMMARY {
+        int Id PK
+        int ClaimId FK
+        string Status "Answered | Abstained | Failed"
+        string ReviewState "NotRequired | PendingReview | Accepted | Rejected"
+        string ReviewedBy
+        string AssessmentJson
+    }
+    AI_SUMMARY_STATEMENT {
+        int Id PK
+        string Text
+        string Origin "Model | System"
+        string CitationsJson
+    }
+    AI_SUMMARY_PASSAGE {
+        int Id PK
+        string Label
+        string Text "snapshot"
+    }
+    POLICY_DOCUMENT {
+        int Id PK
+        string Title
+        string PolicyFamily
+        string Version
+        string Sha256 UK
+        bool IsActive
+    }
+    POLICY_CHUNK {
+        int Id PK
+        string ClauseRef
+        string SectionPath
+        int PageNumber
+        bytes Embedding
     }
     AUDIT_ENTRY {
         int Id PK
@@ -98,19 +142,7 @@ erDiagram
 
 ## 5. API endpoints
 
-| Method | Path | Purpose | Success | Common errors |
-|---|---|---|---|---|
-| POST | `/api/claims` | Create a claim | 201 | 400 validation |
-| GET | `/api/claims` | List (query: `status`, `claimType`, `search`, `sortBy`, `sortDir`, `page`, `pageSize`) | 200 | 400 bad query |
-| GET | `/api/claims/summary` | Dashboard numbers | 200 | |
-| GET | `/api/claims/{id}` | Detail + validation + allowed next statuses | 200 | 404 |
-| GET | `/api/claims/{id}/validation` | Missing documents / fields | 200 | 404 |
-| POST | `/api/claims/{id}/documents` | Record a received document | 201 | 400, 404, 409 duplicate or final claim |
-| POST | `/api/claims/{id}/status` | Change status (reviewer + note) | 200 | 400, 404, 409 invalid move / incomplete |
-| GET | `/api/claims/{id}/audit` | Audit history | 200 | 404 |
-| GET | `/health` | Liveness check | 200 | |
-
-Interactive documentation: `/scalar/v1` while running in Development.
+See [api.md](api.md) for the complete list. Interactive documentation: `/scalar/v1` in Development.
 
 ## 6. Error handling
 
@@ -123,29 +155,17 @@ Interactive documentation: `/scalar/v1` while running in Development.
 
 ## 7. Security considerations
 
-Stage 1: server-side validation, whitelisted sort fields, wildcard characters stripped from search, parameterized queries via EF Core, file names validated, CORS restricted to configured origins, secrets and databases excluded from Git.
-**Not yet:** authentication, authorization, rate limiting, HTTPS enforcement (all planned before deployment).
+Implemented: server-side validation, whitelisted sort fields, parameterized queries, upload allow-list + content checks +
+server-generated storage names, XML hardening, security headers, rate limiting on upload/AI endpoints, CORS restricted to
+configured origins, secrets/databases/uploads excluded from Git, sanitised provider errors, prompts and keys never logged.
+**Not implemented:** authentication, authorization, HTTPS enforcement, audit-log tamper protection (all required before any
+real deployment).
 
-## 8. Planned Stage 2 AI architecture (not implemented)
+## 8. AI architecture
 
-```mermaid
-flowchart LR
-    P[Fictional policy documents] --> I[Ingest: extract, chunk, keep clause metadata]
-    I --> K[(Keyword index)]
-    I --> V[(Vector index)]
-    Q[Reviewer question + claim] --> H[Hybrid retrieval]
-    K --> H
-    V --> H
-    H --> RR[Rerank]
-    RR --> G{Enough evidence?}
-    G -- yes --> L[LLM writes answer from evidence only]
-    G -- no --> A[Abstain: insufficient evidence]
-    L --> O[Answer + citations, labeled AI-generated]
-    O --> HR[Human reviewer decides]
-```
+Implemented; see [rag.md](rag.md) for the pipeline diagram, scoring, validation rules and limitations.
 
-The technology for embeddings, vector search and the LLM is deliberately **not chosen yet**; see `decisions.md`.
+## 9. Deployment (not done)
 
-## 9. Deployment (planned Stage 3)
-
-Frontend on static hosting, API on a container host, PostgreSQL for persistence (SQLite files are lost on ephemeral hosts). Free-tier limits will be verified at that time, not assumed now.
+Frontend on static hosting, API on a container host, PostgreSQL for persistence (SQLite files and `claim-files/` are lost on
+ephemeral hosts). Not set up or verified here.
