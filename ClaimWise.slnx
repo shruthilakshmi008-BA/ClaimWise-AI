@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/ClaimWise.Api/ClaimWise.Api.csproj" />
+  <Project Path="tests/ClaimWise.Tests/ClaimWise.Tests.csproj" />
+</Solution>

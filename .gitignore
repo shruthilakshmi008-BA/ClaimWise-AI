@@ -1,0 +1,26 @@
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# Local databases (never commit these)
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets and local config
+.env
+*.env.local
+appsettings.Development.local.json
+secrets.json
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Editor / OS
+.idea/
+.DS_Store
+Thumbs.db
