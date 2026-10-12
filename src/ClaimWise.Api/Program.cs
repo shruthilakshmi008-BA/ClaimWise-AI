@@ -87,6 +87,10 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     if (!app.Environment.IsEnvironment("Testing") && app.Configuration.GetValue<bool>("Seed:Enabled"))
         await SeedData.ApplyAsync(db);
+
+    var policyDir = app.Configuration["Seed:PolicyDirectory"];
+    if (!app.Environment.IsEnvironment("Testing") && !string.IsNullOrWhiteSpace(policyDir))
+        await SamplePolicySeeder.ApplyAsync(app.Services, Path.GetFullPath(policyDir, app.Environment.ContentRootPath));
 }
 
 app.UseExceptionHandler();
