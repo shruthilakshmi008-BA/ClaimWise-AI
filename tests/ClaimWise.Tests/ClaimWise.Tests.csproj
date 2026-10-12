@@ -17,6 +17,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClaimWise.Api\ClaimWise.Api.csproj" />
+    <ProjectReference Include="..\..\src\ClaimWise.Rag\ClaimWise.Rag.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The fictional sample policies double as the corpus for retrieval and evaluation tests. -->
+    <None Include="..\..\samples\policies\*.md" Link="samples\policies\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
