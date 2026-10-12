@@ -4,7 +4,12 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ClaimWise.Api.Data;
 
-public class ClaimWiseDbContext(DbContextOptions<ClaimWiseDbContext> options) : DbContext(options)
+/// <summary>
+/// The application's database model. It is provider-neutral; <see cref="SqliteClaimWiseDbContext"/> and
+/// <see cref="PostgresClaimWiseDbContext"/> exist only so each provider owns its own migration set
+/// (the generated SQL and column annotations differ between SQLite and PostgreSQL).
+/// </summary>
+public abstract class ClaimWiseDbContext(DbContextOptions options) : DbContext(options)
 {
     public DbSet<Claim> Claims => Set<Claim>();
     public DbSet<ClaimDocument> ClaimDocuments => Set<ClaimDocument>();
@@ -36,9 +41,12 @@ public class ClaimWiseDbContext(DbContextOptions<ClaimWiseDbContext> options) : 
             e.Property(c => c.ClaimType).HasConversion<string>().HasMaxLength(20);
             e.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
 
-            // SQLite cannot sort or sum the decimal type, so money is stored as a double.
-            // Fine for a demo with 2-decimal amounts; PostgreSQL's numeric type avoids this limit.
-            e.Property(c => c.AmountClaimed).HasConversion<double>();
+            // SQLite cannot sort or sum the decimal type, so there money is stored as a double.
+            // Fine for a demo with 2-decimal amounts; PostgreSQL uses an exact numeric column instead.
+            if (Database.IsSqlite())
+                e.Property(c => c.AmountClaimed).HasConversion<double>();
+            else
+                e.Property(c => c.AmountClaimed).HasPrecision(18, 2);
 
             e.Property(c => c.Version).IsConcurrencyToken();
 

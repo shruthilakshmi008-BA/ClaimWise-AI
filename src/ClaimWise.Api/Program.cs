@@ -20,14 +20,24 @@ builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 
-// The connection string is read when the context is first created (not at startup)
-// so that tests can swap in a temporary database.
-builder.Services.AddDbContext<ClaimWiseDbContext>((serviceProvider, options) =>
+// The provider ("Sqlite" or "PostgreSQL") and connection string are read when the context is first created
+// (not at startup) so that tests can swap in a temporary database. Each provider has its own migration set,
+// so each is registered as the implementation of the shared ClaimWiseDbContext.
+var databaseProvider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+switch (databaseProvider.ToLowerInvariant())
 {
-    var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("Default")
-                           ?? "Data Source=claimwise.db";
-    options.UseSqlite(connectionString);
-});
+    case "sqlite":
+        builder.Services.AddDbContext<ClaimWiseDbContext, SqliteClaimWiseDbContext>((sp, options) =>
+            options.UseSqlite(sp.GetRequiredService<IConfiguration>().GetConnectionString("Default") ?? "Data Source=claimwise.db"));
+        break;
+    case "postgresql" or "postgres" or "npgsql":
+        builder.Services.AddDbContext<ClaimWiseDbContext, PostgresClaimWiseDbContext>((sp, options) =>
+            options.UseNpgsql(sp.GetRequiredService<IConfiguration>().GetConnectionString("Default")
+                              ?? throw new InvalidOperationException("ConnectionStrings:Default is required for PostgreSQL.")));
+        break;
+    default:
+        throw new InvalidOperationException($"Unsupported Database:Provider '{databaseProvider}'. Use 'Sqlite' or 'PostgreSQL'.");
+}
 
 builder.Services.AddScoped<IClaimService, ClaimService>();
 
@@ -38,12 +48,15 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Create the database on first run. Stage 1 uses EnsureCreated for simplicity;
-// real migrations are introduced before deployment (see docs/decisions.md).
+// Apply pending EF Core migrations at startup (set Database:AutoMigrate=false to run them yourself).
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ClaimWiseDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    if (app.Configuration.GetValue("Database:AutoMigrate", true))
+    {
+        await LegacyDatabaseGuard.EnsureNotLegacyAsync(db);
+        await db.Database.MigrateAsync();
+    }
 
     if (!app.Environment.IsEnvironment("Testing") && app.Configuration.GetValue<bool>("Seed:Enabled"))
         await SeedData.ApplyAsync(db);
