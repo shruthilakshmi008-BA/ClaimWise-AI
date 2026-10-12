@@ -27,3 +27,6 @@ Thumbs.db
 
 # Uploaded claim documents (synthetic data only, still never commit)
 claim-files/
+
+# e2e screenshots
+e2e/screenshots/
