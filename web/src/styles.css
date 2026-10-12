@@ -164,7 +164,7 @@ th.num { text-align: right; }
 .badges { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .ai-label { font-size: 0.8rem; color: var(--conflict-text); background: var(--conflict-bg); border: 1px solid var(--conflict-border); display: inline-block; padding: 0.05rem 0.6rem; border-radius: 999px; margin: 0.25rem 0 0.5rem; }
 .statements { padding-left: 1.3rem; display: grid; gap: 0.6rem; }
-.statements li.system { background: var(--conflict-bg); border-radius: 8px; padding: 0.4rem 0.6rem; list-style-position: inside; }
+.statements li.system { background: var(--conflict-bg); border-radius: 8px; padding: 0.4rem 0.6rem; }
 .statements p { margin: 0; }
 .cite { font: inherit; font-size: 0.8rem; border: 1px solid var(--primary); color: var(--primary); background: transparent; border-radius: 6px; padding: 0 0.35rem; cursor: pointer; }
 .cite[aria-expanded='true'] { background: var(--primary); color: var(--primary-contrast); }

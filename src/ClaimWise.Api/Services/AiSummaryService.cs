@@ -67,7 +67,7 @@ public sealed class AiSummaryService(
             ClaimId = claim.Id,
             Action = "AiSummaryGenerated",
             Details = $"{result.Outcome} via {result.GeneratorName}{(result.ModelId is null ? "" : " (" + result.ModelId + ")")}; " +
-                      $"{summary.Statements.Count} statement(s), {summary.Passages.Count} passage(s). Awaiting human review: {summary.ReviewState == SummaryReviewState.PendingReview}.",
+                      $"{summary.Statements.Count} statement(s), {summary.Passages.Count} passage(s). Awaiting human review: {(summary.ReviewState == SummaryReviewState.PendingReview ? "yes" : "no")}.",
             Actor = request.RequestedBy.Trim(),
             Timestamp = now
         });
