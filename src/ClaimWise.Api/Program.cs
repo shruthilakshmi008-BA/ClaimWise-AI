@@ -51,6 +51,18 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 app.UseExceptionHandler();
 
+// Baseline response hardening. The API only returns JSON, so a locked-down CSP costs nothing.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "no-referrer";
+    if (!context.Request.Path.StartsWithSegments("/scalar"))
+        headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();          // JSON description of the API at /openapi/v1.json
