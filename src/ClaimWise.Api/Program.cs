@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using ClaimWise.Api.Ai;
 using ClaimWise.Api.Data;
 using ClaimWise.Api.Infrastructure;
 using ClaimWise.Api.Services;
@@ -41,12 +42,32 @@ switch (databaseProvider.ToLowerInvariant())
 
 builder.Services.AddScoped<IClaimService, ClaimService>();
 
+// Policy ingestion, hybrid retrieval and grounded summaries (providers chosen by the "Ai" configuration section).
+builder.Services.AddClaimWiseAi(builder.Configuration);
+builder.Services.AddScoped<IPolicyService, PolicyService>();
+builder.Services.AddScoped<IPolicySearchService, PolicySearchService>();
+
+// Throttle the expensive endpoints (provider calls, embedding, uploads) per client address.
+var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 30);
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    foreach (var policy in new[] { "ai", "upload" })
+        o.AddPolicy(policy, ctx => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = permitLimit, Window = TimeSpan.FromMinutes(1) }));
+});
+
 // CORS lets the React dev server (a different port) call this API from the browser.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
+
+// Fail fast on bad provider configuration instead of on the first request.
+_ = app.Services.GetRequiredService<ClaimWise.Rag.Embeddings.IEmbeddingProvider>();
+_ = app.Services.GetRequiredService<ClaimWise.Rag.Grounding.ISummaryGenerator>();
 
 // Apply pending EF Core migrations at startup (set Database:AutoMigrate=false to run them yourself).
 await using (var scope = app.Services.CreateAsyncScope())
@@ -83,6 +104,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 

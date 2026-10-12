@@ -14,6 +14,8 @@ public abstract class ClaimWiseDbContext(DbContextOptions options) : DbContext(o
     public DbSet<Claim> Claims => Set<Claim>();
     public DbSet<ClaimDocument> ClaimDocuments => Set<ClaimDocument>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<PolicyDocument> PolicyDocuments => Set<PolicyDocument>();
+    public DbSet<PolicyChunk> PolicyChunks => Set<PolicyChunk>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -59,6 +61,28 @@ public abstract class ClaimWiseDbContext(DbContextOptions options) : DbContext(o
             e.Property(d => d.FileName).HasMaxLength(200).IsRequired();
             e.Property(d => d.DocumentType).HasConversion<string>().HasMaxLength(30);
             e.HasOne<Claim>().WithMany(c => c.Documents).HasForeignKey(d => d.ClaimId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PolicyDocument>(e =>
+        {
+            e.Property(d => d.Title).HasMaxLength(200).IsRequired();
+            e.Property(d => d.PolicyFamily).HasMaxLength(100);
+            e.Property(d => d.Version).HasMaxLength(50);
+            e.Property(d => d.FileName).HasMaxLength(200).IsRequired();
+            e.Property(d => d.Sha256).HasMaxLength(64).IsRequired();
+            e.Property(d => d.UploadedBy).HasMaxLength(100).IsRequired();
+            e.HasIndex(d => d.Sha256).IsUnique();
+            e.HasMany(d => d.Chunks).WithOne().HasForeignKey(c => c.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PolicyChunk>(e =>
+        {
+            e.Property(c => c.Text).HasMaxLength(8000).IsRequired();
+            e.Property(c => c.Heading).HasMaxLength(300);
+            e.Property(c => c.ClauseRef).HasMaxLength(30);
+            e.Property(c => c.SectionPath).HasMaxLength(600).IsRequired();
+            e.Property(c => c.EmbeddingModel).HasMaxLength(120).IsRequired();
+            e.HasIndex(c => new { c.DocumentId, c.Ordinal });
         });
 
         modelBuilder.Entity<AuditEntry>(e =>
