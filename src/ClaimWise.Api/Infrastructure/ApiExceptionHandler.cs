@@ -1,3 +1,5 @@
+using ClaimWise.Rag.Embeddings;
+using ClaimWise.Rag.Extraction;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +26,26 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             case BusinessRuleException:
                 status = StatusCodes.Status409Conflict;
                 title = "Business rule violated";
+                break;
+            case PayloadTooLargeException:
+                status = StatusCodes.Status413PayloadTooLarge;
+                title = "Payload too large";
+                break;
+            case UnsupportedFileException:
+                status = StatusCodes.Status415UnsupportedMediaType;
+                title = "Unsupported file type";
+                break;
+            case ExtractionException:
+                status = StatusCodes.Status422UnprocessableEntity;
+                title = "Document could not be read";
+                break;
+            case ProviderException { IsTransient: true }:
+                status = StatusCodes.Status503ServiceUnavailable;
+                title = "AI provider temporarily unavailable";
+                break;
+            case ProviderException:
+                status = StatusCodes.Status502BadGateway;
+                title = "AI provider error";
                 break;
             default:
                 return false;

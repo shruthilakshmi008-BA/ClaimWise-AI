@@ -19,6 +19,9 @@ public class Claim
     public string? ReviewerName { get; set; }
     public string? ReviewerNote { get; set; }
 
+    /// <summary>Optimistic-concurrency token. Incremented on every update so concurrent edits are detected.</summary>
+    public int Version { get; set; }
+
     public List<ClaimDocument> Documents { get; set; } = new();
     public List<AuditEntry> AuditEntries { get; set; } = new();
 }
@@ -30,6 +33,14 @@ public class ClaimDocument
     public DocumentType DocumentType { get; set; }
     public string FileName { get; set; } = "";
     public DateTime ReceivedAt { get; set; }
+
+    // Set only when the file itself was uploaded (as opposed to just recording that a document was received).
+    public long? SizeBytes { get; set; }
+    public string? Sha256 { get; set; }
+    public string? ContentType { get; set; }
+
+    /// <summary>Server-generated storage name (GUID + extension). Never derived from the uploaded file name.</summary>
+    public string? StoredFileName { get; set; }
 }
 
 public class AuditEntry

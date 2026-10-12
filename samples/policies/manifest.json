@@ -1,0 +1,6 @@
+[
+  { "file": "gold-plan-policy-2024.md",      "policyFamily": "gold-plan",  "version": "2024.1", "effectiveDate": "2024-01-01" },
+  { "file": "gold-plan-amendment-2025.md",   "policyFamily": "gold-plan",  "version": "2025.1", "effectiveDate": "2025-01-01" },
+  { "file": "basic-plan-policy-2024.md",     "policyFamily": "basic-plan", "version": "2024.1", "effectiveDate": "2024-01-01" },
+  { "file": "claims-handling-guidelines.md", "policyFamily": "internal",   "version": "3" }
+]

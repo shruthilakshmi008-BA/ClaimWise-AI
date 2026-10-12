@@ -73,7 +73,10 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
                     EF.Functions.Like(c.ClaimNumber, pattern) ||
                     EF.Functions.Like(c.PatientName, pattern) ||
                     EF.Functions.Like(c.MemberId, pattern) ||
-                    EF.Functions.Like(c.ProviderName, pattern));
+                    EF.Functions.Like(c.PolicyNumber, pattern) ||
+                    EF.Functions.Like(c.ProviderName, pattern) ||
+                    (c.DiagnosisCode != null && EF.Functions.Like(c.DiagnosisCode, pattern)) ||
+                    (c.ProcedureCode != null && EF.Functions.Like(c.ProcedureCode, pattern)));
             }
         }
 
@@ -155,6 +158,7 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
 
         claim.Documents.Add(doc);
         claim.UpdatedAt = now;
+        claim.Version++;
         db.AuditEntries.Add(new AuditEntry
         {
             ClaimId = claim.Id,
@@ -164,7 +168,7 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
             Timestamp = now
         });
 
-        await db.SaveChangesAsync(ct);
+        await SaveWithConcurrencyCheckAsync(claim.ClaimNumber, ct);
         return new DocumentDto(doc.Id, doc.DocumentType, doc.FileName, doc.ReceivedAt);
     }
 
@@ -174,6 +178,10 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
             .FirstOrDefaultAsync(c => c.Id == id, ct)
             ?? throw new NotFoundException($"Claim {id} was not found.");
 
+        if (request.ExpectedVersion is { } expected && expected != claim.Version)
+            throw new BusinessRuleException(
+                $"Claim {claim.ClaimNumber} was changed by someone else after you opened it (version {claim.Version}, you had {expected}). Reload and review the latest state before deciding.");
+
         var from = claim.Status;
         var to = request.NewStatus!.Value;
 
@@ -182,6 +190,18 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
             var allowed = ClaimWorkflow.AllowedNext(from);
             var allowedText = allowed.Count == 0 ? "none (this status is final)" : string.Join(", ", allowed);
             throw new BusinessRuleException($"A claim cannot move from {from} to {to}. Allowed next statuses: {allowedText}.");
+        }
+
+        // An AI summary with findings must be accepted or rejected by a person before the claim can be decided.
+        if (to is ClaimStatus.Approved or ClaimStatus.Rejected)
+        {
+            var pending = await db.AiSummaries.AsNoTracking()
+                .Where(s => s.ClaimId == claim.Id && s.ReviewState == SummaryReviewState.PendingReview)
+                .Select(s => s.Id).ToListAsync(ct);
+            if (pending.Count > 0)
+                throw new BusinessRuleException(
+                    $"AI summary {string.Join(", ", pending)} for claim {claim.ClaimNumber} has not been reviewed. " +
+                    "Accept or reject it (POST /api/claims/{id}/summaries/{summaryId}/review) before deciding the claim.");
         }
 
         // A human reviewer must not approve a claim whose submission is incomplete.
@@ -202,19 +222,29 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
 
         claim.Status = to;
         claim.ReviewerName = reviewer;
-        if (note is not null) claim.ReviewerNote = note;
+        // The note belongs to the latest decision; keeping an older one would show it next to a different reviewer.
+        claim.ReviewerNote = note;
         claim.UpdatedAt = now;
+        claim.Version++;
+
+        // Make AI involvement explicit in the audit trail of a decision: which summaries a person reviewed first.
+        var reviewedSummaries = to is ClaimStatus.Approved or ClaimStatus.Rejected
+            ? await db.AiSummaries.AsNoTracking()
+                .Where(s => s.ClaimId == claim.Id && (s.ReviewState == SummaryReviewState.Accepted || s.ReviewState == SummaryReviewState.Rejected))
+                .OrderBy(s => s.Id).Select(s => $"#{s.Id} {s.ReviewState}").ToListAsync(ct)
+            : [];
+        var aiNote = reviewedSummaries.Count > 0 ? $" [AI summaries reviewed by a person before this decision: {string.Join(", ", reviewedSummaries)}]" : "";
 
         db.AuditEntries.Add(new AuditEntry
         {
             ClaimId = claim.Id,
             Action = "StatusChanged",
-            Details = note is null ? $"{from} -> {to}" : $"{from} -> {to}. Note: {note}",
+            Details = (note is null ? $"{from} -> {to}" : $"{from} -> {to}. Note: {note}") + aiNote,
             Actor = reviewer,
             Timestamp = now
         });
 
-        await db.SaveChangesAsync(ct);
+        await SaveWithConcurrencyCheckAsync(claim.ClaimNumber, ct);
         logger.LogInformation("Claim {ClaimNumber} moved {From} -> {To} by {Reviewer}", claim.ClaimNumber, from, to, reviewer);
         return ToDetail(claim);
     }
@@ -243,9 +273,35 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
                              : q.OrderBy(c => c.AmountClaimed).ThenBy(c => c.Id),
             "claimnumber" => desc ? q.OrderByDescending(c => c.ClaimNumber).ThenBy(c => c.Id)
                                   : q.OrderBy(c => c.ClaimNumber).ThenBy(c => c.Id),
+            // Workflow order (Submitted first), not alphabetical, because that is what reviewers expect.
+            "status" => desc ? q.OrderByDescending(StatusRank).ThenBy(c => c.Id)
+                             : q.OrderBy(StatusRank).ThenBy(c => c.Id),
             _ => desc ? q.OrderByDescending(c => c.SubmittedAt).ThenBy(c => c.Id)
                       : q.OrderBy(c => c.SubmittedAt).ThenBy(c => c.Id)
         };
+
+    // An expression (not a method) so EF Core translates it to a SQL CASE.
+    private static readonly System.Linq.Expressions.Expression<Func<Claim, int>> StatusRank = c =>
+        c.Status == ClaimStatus.Submitted ? 0 :
+        c.Status == ClaimStatus.InReview ? 1 :
+        c.Status == ClaimStatus.NeedsInformation ? 2 :
+        c.Status == ClaimStatus.Approved ? 3 : 4;
+
+    // Two reviewers saving the same claim at once: the second save fails instead of silently overwriting the first.
+    private async Task SaveWithConcurrencyCheckAsync(string claimNumber, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new BusinessRuleException($"Claim {claimNumber} was changed by someone else while you were saving. Reload and try again.");
+        }
+    }
+
+    internal static DocumentDto ToDocumentDto(ClaimDocument d) =>
+        new(d.Id, d.DocumentType, d.FileName, d.ReceivedAt, d.SizeBytes, d.Sha256, d.StoredFileName is not null);
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
@@ -256,8 +312,8 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
     private static ClaimDetailDto ToDetail(Claim c) => new(
         c.Id, c.ClaimNumber, c.PatientName, c.MemberId, c.PolicyNumber, c.ProviderName,
         c.ClaimType, c.DiagnosisCode, c.ProcedureCode, c.AmountClaimed, c.ServiceDate,
-        c.Status, c.SubmittedAt, c.UpdatedAt, c.ReviewerName, c.ReviewerNote,
-        c.Documents.OrderBy(d => d.Id).Select(d => new DocumentDto(d.Id, d.DocumentType, d.FileName, d.ReceivedAt)).ToList(),
+        c.Status, c.SubmittedAt, c.UpdatedAt, c.Version, c.ReviewerName, c.ReviewerNote,
+        c.Documents.OrderBy(d => d.Id).Select(ToDocumentDto).ToList(),
         ToValidationDto(ClaimRules.Validate(c)),
         ClaimWorkflow.AllowedNext(c.Status));
 }

@@ -38,8 +38,13 @@ public sealed class CreateClaimRequest : IValidatableObject
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (ServiceDate is { } date && date > DateOnly.FromDateTime(DateTime.UtcNow))
+        // Use the injected clock (when MVC provides one) so the rule is testable and consistent with the services.
+        var clock = (TimeProvider?)validationContext.GetService(typeof(TimeProvider)) ?? TimeProvider.System;
+        if (ServiceDate is { } date && date > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
             yield return new ValidationResult("ServiceDate cannot be in the future.", [nameof(ServiceDate)]);
+
+        if (decimal.Round(AmountClaimed, 2) != AmountClaimed)
+            yield return new ValidationResult("AmountClaimed can have at most 2 decimal places.", [nameof(AmountClaimed)]);
     }
 }
 
@@ -64,6 +69,12 @@ public sealed class ChangeStatusRequest : IValidatableObject
     [StringLength(1000)]
     public string? Note { get; init; }
 
+    /// <summary>
+    /// Optional. The claim <c>version</c> the reviewer was looking at. If the claim has changed since,
+    /// the request is rejected with 409 so a decision is never made on stale information.
+    /// </summary>
+    public int? ExpectedVersion { get; init; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (NewStatus is { } status && ClaimWorkflow.RequiresNote(status) && string.IsNullOrWhiteSpace(Note))
@@ -79,8 +90,8 @@ public sealed class ClaimListQuery
     [StringLength(100)]
     public string? Search { get; init; }
 
-    [RegularExpression("^(?i)(submittedAt|serviceDate|amount|claimNumber)$",
-        ErrorMessage = "SortBy must be one of: submittedAt, serviceDate, amount, claimNumber.")]
+    [RegularExpression("^(?i)(submittedAt|serviceDate|amount|claimNumber|status)$",
+        ErrorMessage = "SortBy must be one of: submittedAt, serviceDate, amount, claimNumber, status.")]
     public string SortBy { get; init; } = "submittedAt";
 
     [RegularExpression("^(?i)(asc|desc)$", ErrorMessage = "SortDir must be asc or desc.")]
@@ -106,7 +117,17 @@ public sealed record ClaimSummaryDto(
     ClaimStatus Status,
     DateTime SubmittedAt);
 
-public sealed record DocumentDto(int Id, DocumentType DocumentType, string FileName, DateTime ReceivedAt);
+public sealed record DocumentDto(
+    int Id, DocumentType DocumentType, string FileName, DateTime ReceivedAt, long? SizeBytes = null, string? Sha256 = null, bool HasFile = false);
+
+public sealed class UploadClaimDocumentRequest
+{
+    [Required]
+    public DocumentType? DocumentType { get; init; }
+
+    [Required]
+    public IFormFile? File { get; init; }
+}
 
 public sealed record ValidationDto(
     bool IsComplete,
@@ -129,6 +150,7 @@ public sealed record ClaimDetailDto(
     ClaimStatus Status,
     DateTime SubmittedAt,
     DateTime UpdatedAt,
+    int Version,
     string? ReviewerName,
     string? ReviewerNote,
     IReadOnlyList<DocumentDto> Documents,

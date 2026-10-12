@@ -116,11 +116,26 @@ No numbers are claimed. Stage 1 is successful when:
 - Every business rule BR-1 to BR-5 has at least one test.
 - A reviewer can complete the flow *create → add documents → review → decide* and the audit history shows each step.
 
-## 11. MVP scope
+## 11. Scope
 
-**In:** FR-1 to FR-11, backend API, tests, docs.
-**Out (later):** frontend (Stage 1b); document upload, retrieval, reranking, AI summaries, citations (Stage 2); authentication, migrations, PostgreSQL, deployment (Stage 3).
+**Stage 1 (FR-1 to FR-11)**: implemented. **Added since:** claim-document upload; policy upload, extraction and chunking with
+source metadata; hybrid retrieval with reranking; evidence-grounded summaries with validated citations, evidence-sufficiency
+abstention and conflict handling; human review of AI summaries (a gate before decisions) with audit; PostgreSQL + migrations;
+React UI; automated tests. See [implementation-status.md](implementation-status.md).
+
+| ID | Requirement (Stage 2) |
+|---|---|
+| FR-12 | Upload policy documents (.txt .md .pdf .docx), extract text, chunk with clause/section/page metadata |
+| FR-13 | Hybrid retrieval (keyword + vector) with reranking; expose per-stage scores |
+| FR-14 | Summaries cite real passages; every quote verified verbatim; figures grounded; no decision language |
+| FR-15 | Abstain (without calling a model) when evidence is insufficient; explain why |
+| FR-16 | Detect and surface conflicting passages without resolving them |
+| FR-17 | AI never changes claim status; a person accepts/rejects each summary with findings before the claim can be approved/rejected |
+| FR-18 | Audit AI generation, human review and AI-aware decisions |
+
+**Still out:** authentication/roles, deployment, CI, OCR, notification simulation.
 
 ## 12. Future enhancements
 
-Policy ingestion and chunking with clause metadata; hybrid keyword + vector search; reranking; grounded summaries with citations and an evidence-sufficiency indicator; a labeled retrieval evaluation set; role-based access; email/notification simulation.
+Role-based access and verified identities; a cross-encoder or LLM reranker; neural embeddings by default with pgvector;
+a larger labelled retrieval evaluation set; OCR for scanned policies; object storage for uploads; CI pipeline.

@@ -15,9 +15,10 @@ namespace ClaimWise.Tests;
 /// Starts the real API in memory, pointed at a throw-away SQLite file,
 /// so tests exercise validation, controllers, services and the database together.
 /// </summary>
-public sealed class ClaimWiseFactory : WebApplicationFactory<Program>
+public class ClaimWiseFactory : WebApplicationFactory<Program>
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"claimwise-test-{Guid.NewGuid():N}.db");
+    public string FilesPath { get; } = Path.Combine(Path.GetTempPath(), $"claimwise-files-{Guid.NewGuid():N}");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -26,7 +27,8 @@ public sealed class ClaimWiseFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = $"Data Source={_dbPath}",
-                ["Seed:Enabled"] = "false"
+                ["Seed:Enabled"] = "false",
+                ["ClaimFiles:Path"] = FilesPath
             }));
     }
 
@@ -37,6 +39,7 @@ public sealed class ClaimWiseFactory : WebApplicationFactory<Program>
 
         SqliteConnection.ClearAllPools(); // release the file lock so it can be deleted
         try { File.Delete(_dbPath); } catch (IOException) { /* temp file; the OS will clean it up */ }
+        try { if (Directory.Exists(FilesPath)) Directory.Delete(FilesPath, recursive: true); } catch (IOException) { }
     }
 }
 

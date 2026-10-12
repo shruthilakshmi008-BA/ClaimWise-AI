@@ -15,9 +15,13 @@ Controllers group related endpoints in a class and are what most .NET job descri
 
 SQLite needs no server, which suits a beginner on Windows. EF Core lets us switch providers later. *Downside:* SQLite lacks some types and features (see D5), and a SQLite file does not survive on ephemeral cloud hosts.
 
-## D4. `EnsureCreated` now, migrations later
+## D4. EF Core migrations, one set per provider
 
-`EnsureCreated` builds the database from the model in one line, so Stage 1 needs no extra tools. It cannot evolve an existing database, so before Stage 2 adds tables we switch to EF Core migrations (which also need the `dotnet-ef` tool). *Downside:* if the model changes during Stage 1, delete `claimwise.db` and let it recreate.
+`EnsureCreated` was replaced by migrations applied at startup (`Database:AutoMigrate`). SQLite and PostgreSQL generate
+different SQL and column annotations (e.g. identity columns), so each provider has its own migration set via a thin
+derived context (`SqliteClaimWiseDbContext`, `PostgresClaimWiseDbContext`); the model itself is shared. A test fails if either
+snapshot drifts from the model. A database created by the old `EnsureCreated` code is detected and the user is told to
+delete it (it only ever held synthetic data). *Downside:* every model change needs two migrations.
 
 ## D5. Money stored as `double` in SQLite
 
@@ -44,22 +48,50 @@ The service throws `NotFoundException` / `BusinessRuleException`, and one handle
 
 Approve/Reject needs a named reviewer and a note. Because there is no login, the name is self-declared, so the audit trail is **not** tamper-proof or identity-verified. Authentication and roles are planned before deployment, and this limitation is stated in the README rather than hidden.
 
-## D11. Documents are metadata only in Stage 1
+## D11. Claim documents: metadata endpoint kept, real upload added
 
-Uploading and parsing files belongs with ingestion in Stage 2, where text extraction and chunking are needed. Stage 1 still proves the completeness workflow.
+The metadata-only endpoint remains for "received" bookkeeping; a multipart upload now stores the real file (allow-list, content
+check, GUID name on local disk, SHA-256, size). Claim-document *contents* are not used for retrieval. Local disk is a
+development choice; ephemeral hosts need object storage behind `IClaimFileStore`.
 
 ## D12. API documentation: built-in OpenAPI + Scalar
 
 .NET 9 and later no longer ship Swagger UI by default. Built-in OpenAPI generation plus the free Scalar viewer gives interactive docs with few dependencies. *Alternative:* Swashbuckle, which is widely used but is no longer part of the default template; whether it suits .NET 10 should be checked before choosing it.
 
-## Open decisions for Stage 2 (deliberately not decided)
+## D13. RAG library in C# in its own project
 
-These will be researched and verified when we reach Stage 2, then recorded here.
+Everything AI-related is C#, in `ClaimWise.Rag` with no EF Core/ASP.NET dependency: one language and one deployable, and the
+pipeline is unit-testable with fakes. *Alternative:* a Python service with a richer ML ecosystem; rejected for the added
+deployment and the fact that the models are reached over HTTP anyway.
 
-| Question | Options to compare |
-|---|---|
-| Language for AI pieces | Keep everything in C# (simpler deployment, one codebase) vs. a small Python service (richer ML ecosystem) |
-| Embeddings | Local open-source model (free, needs CPU/RAM) vs. optional hosted API (paid) |
-| Keyword + vector search | SQLite FTS5 plus a vector extension for local development; PostgreSQL full-text plus `pgvector` for deployment |
-| LLM | Local model via Ollama (free, hardware-dependent) vs. a hosted provider behind an interface so the app is not tied to one vendor |
-| Reranking | Lightweight score-fusion first; a cross-encoder model only if evaluation shows a benefit |
+## D14. In-memory BM25 + brute-force vectors instead of database features
+
+Keeps keyword and vector search identical on SQLite and PostgreSQL and needs no extensions. Fine for policy corpora of
+thousands of passages; beyond that use PostgreSQL full-text + pgvector (the `PolicyIndex`/`HybridRetriever` seam is where it
+would change).
+
+## D15. Offline-first providers; honest labels
+
+The default embedder (feature hashing + small synonym table) and summary writer (extractive quoting) need no keys and are
+labelled as such in the UI. Hosted models are optional adapters. The default embedder is **not** neural; this is stated in the
+UI status card, README and docs/rag.md.
+
+## D16. Abstain before generating; validate after generating
+
+Weak evidence never reaches a model, and nothing a model writes is shown unless every citation verifies against retrieved
+text. A failed or fully-invalid generation is an abstention/failure, never a fabricated answer.
+
+## D17. Same-family conflict detection
+
+Passages are compared for contradictions only within one document or one policy family (e.g. `gold-plan` 2024 vs its 2025
+amendment). Gold vs Basic limits are different products; the summary warns that several policies matched and the reviewer can
+scope the search to chosen documents.
+
+## D18. A human review gate in the workflow, not just in the UI
+
+The API refuses to approve/reject a claim while an Answered AI summary awaits review, and records which AI summaries a person
+reviewed in the decision's audit entry. *Trade-off:* a reviewer must click accept/reject even for a summary they ignore.
+
+## D19. No authentication yet
+
+Unchanged from D10: reviewer names are self-declared. Documented prominently; the API must stay on a trusted network.

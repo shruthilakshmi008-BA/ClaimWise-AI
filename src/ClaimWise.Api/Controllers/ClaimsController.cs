@@ -1,13 +1,14 @@
 using ClaimWise.Api.Dtos;
 using ClaimWise.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ClaimWise.Api.Controllers;
 
 [ApiController]
 [Route("api/claims")]
 [Produces("application/json")]
-public class ClaimsController(IClaimService claims) : ControllerBase
+public class ClaimsController(IClaimService claims, IAiSummaryService summaries, IClaimDocumentService documents) : ControllerBase
 {
     /// <summary>Submit a new claim (claim intake).</summary>
     [HttpPost]
@@ -50,12 +51,66 @@ public class ClaimsController(IClaimService claims) : ControllerBase
         return Created($"/api/claims/{id}", doc);
     }
 
+    /// <summary>Upload the supporting file for a required document (pdf, png, jpg, docx or txt, up to 10 MB).</summary>
+    [HttpPost("{id:int}/documents/upload")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    [EnableRateLimiting("upload")]
+    [ProducesResponseType<DocumentDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status413PayloadTooLarge)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status415UnsupportedMediaType)]
+    public async Task<ActionResult<DocumentDto>> UploadDocument(int id, [FromForm] UploadClaimDocumentRequest request, CancellationToken ct)
+    {
+        var doc = await documents.UploadAsync(id, request, ct);
+        return Created($"/api/claims/{id}/documents/{doc.Id}/file", doc);
+    }
+
+    /// <summary>Download an uploaded claim document. Always served as an attachment.</summary>
+    [HttpGet("{id:int}/documents/{documentId:int}/file")]
+    [ProducesResponseType<FileResult>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DownloadDocument(int id, int documentId, CancellationToken ct)
+    {
+        var (content, fileName, contentType) = await documents.OpenAsync(id, documentId, ct);
+        Response.Headers.ContentSecurityPolicy = "default-src 'none'; sandbox";
+        return File(content, contentType, fileName);
+    }
+
     /// <summary>Move a claim to a new status. Decisions are always made by a named human reviewer.</summary>
     [HttpPost("{id:int}/status")]
     [ProducesResponseType<ClaimDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ClaimDetailDto>> ChangeStatus(int id, ChangeStatusRequest request, CancellationToken ct)
         => Ok(await claims.ChangeStatusAsync(id, request, ct));
+
+    /// <summary>
+    /// Generate an evidence-grounded AI summary from the policy documents. The result is Answered (with validated
+    /// citations), Abstained (evidence insufficient) or Failed (provider error). It never changes the claim status.
+    /// </summary>
+    [HttpPost("{id:int}/summaries")]
+    [EnableRateLimiting("ai")]
+    [ProducesResponseType<AiSummaryDto>(StatusCodes.Status201Created)]
+    public async Task<ActionResult<AiSummaryDto>> GenerateSummary(int id, GenerateSummaryRequest request, CancellationToken ct)
+    {
+        var summary = await summaries.GenerateAsync(id, request, ct);
+        return CreatedAtAction(nameof(GetSummary), new { id, summaryId = summary.Id }, summary);
+    }
+
+    /// <summary>All AI summaries for a claim, newest first.</summary>
+    [HttpGet("{id:int}/summaries")]
+    public async Task<ActionResult<IReadOnlyList<AiSummaryDto>>> ListSummaries(int id, CancellationToken ct)
+        => Ok(await summaries.ListAsync(id, ct));
+
+    [HttpGet("{id:int}/summaries/{summaryId:int}")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AiSummaryDto>> GetSummary(int id, int summaryId, CancellationToken ct)
+        => Ok(await summaries.GetAsync(id, summaryId, ct));
+
+    /// <summary>A named human reviewer accepts or rejects an AI summary. Required before the claim can be approved or rejected.</summary>
+    [HttpPost("{id:int}/summaries/{summaryId:int}/review")]
+    [ProducesResponseType<AiSummaryDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AiSummaryDto>> ReviewSummary(int id, int summaryId, ReviewSummaryRequest request, CancellationToken ct)
+        => Ok(await summaries.ReviewAsync(id, summaryId, request, ct));
 
     /// <summary>The audit history for a claim, oldest first.</summary>
     [HttpGet("{id:int}/audit")]
