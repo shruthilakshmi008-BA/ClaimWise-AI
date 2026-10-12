@@ -15,7 +15,7 @@ namespace ClaimWise.Tests;
 /// Starts the real API in memory, pointed at a throw-away SQLite file,
 /// so tests exercise validation, controllers, services and the database together.
 /// </summary>
-public sealed class ClaimWiseFactory : WebApplicationFactory<Program>
+public class ClaimWiseFactory : WebApplicationFactory<Program>
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"claimwise-test-{Guid.NewGuid():N}.db");
 

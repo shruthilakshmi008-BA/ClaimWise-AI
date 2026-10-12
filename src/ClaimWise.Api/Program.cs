@@ -46,6 +46,7 @@ builder.Services.AddScoped<IClaimService, ClaimService>();
 builder.Services.AddClaimWiseAi(builder.Configuration);
 builder.Services.AddScoped<IPolicyService, PolicyService>();
 builder.Services.AddScoped<IPolicySearchService, PolicySearchService>();
+builder.Services.AddScoped<IAiSummaryService, AiSummaryService>();
 
 // Throttle the expensive endpoints (provider calls, embedding, uploads) per client address.
 var permitLimit = builder.Configuration.GetValue("RateLimiting:PermitLimit", 30);

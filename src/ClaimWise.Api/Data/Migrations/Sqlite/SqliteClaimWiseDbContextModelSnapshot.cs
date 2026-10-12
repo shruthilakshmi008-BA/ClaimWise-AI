@@ -17,6 +17,204 @@ namespace ClaimWise.Api.Data.Migrations.Sqlite
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AbstainReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssessmentJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ClaimId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClaimVersionAtGeneration")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConflictsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EmbeddingModel")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GeneratorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ModelId")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RejectedJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RetrievalQuery")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WarningsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimId", "GeneratedAt");
+
+                    b.ToTable("AiSummaries");
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryPassage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ChunkId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClauseRef")
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DocumentTitle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Heading")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("KeywordScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("RerankScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("SectionPath")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SummaryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("VectorScore")
+                        .HasColumnType("REAL");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SummaryId");
+
+                    b.ToTable("AiSummaryPassages");
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryStatementRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CitationsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SummaryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SummaryId");
+
+                    b.ToTable("AiSummaryStatements", (string)null);
+                });
+
             modelBuilder.Entity("ClaimWise.Api.Domain.AuditEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -283,6 +481,33 @@ namespace ClaimWise.Api.Data.Migrations.Sqlite
                     b.ToTable("PolicyDocuments");
                 });
 
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.Claim", null)
+                        .WithMany()
+                        .HasForeignKey("ClaimId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryPassage", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.AiSummary", null)
+                        .WithMany("Passages")
+                        .HasForeignKey("SummaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryStatementRecord", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.AiSummary", null)
+                        .WithMany("Statements")
+                        .HasForeignKey("SummaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ClaimWise.Api.Domain.AuditEntry", b =>
                 {
                     b.HasOne("ClaimWise.Api.Domain.Claim", null)
@@ -308,6 +533,13 @@ namespace ClaimWise.Api.Data.Migrations.Sqlite
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.Navigation("Passages");
+
+                    b.Navigation("Statements");
                 });
 
             modelBuilder.Entity("ClaimWise.Api.Domain.Claim", b =>

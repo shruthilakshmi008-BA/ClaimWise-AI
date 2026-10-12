@@ -192,6 +192,18 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
             throw new BusinessRuleException($"A claim cannot move from {from} to {to}. Allowed next statuses: {allowedText}.");
         }
 
+        // An AI summary with findings must be accepted or rejected by a person before the claim can be decided.
+        if (to is ClaimStatus.Approved or ClaimStatus.Rejected)
+        {
+            var pending = await db.AiSummaries.AsNoTracking()
+                .Where(s => s.ClaimId == claim.Id && s.ReviewState == SummaryReviewState.PendingReview)
+                .Select(s => s.Id).ToListAsync(ct);
+            if (pending.Count > 0)
+                throw new BusinessRuleException(
+                    $"AI summary {string.Join(", ", pending)} for claim {claim.ClaimNumber} has not been reviewed. " +
+                    "Accept or reject it (POST /api/claims/{id}/summaries/{summaryId}/review) before deciding the claim.");
+        }
+
         // A human reviewer must not approve a claim whose submission is incomplete.
         if (to == ClaimStatus.Approved)
         {
@@ -215,11 +227,19 @@ public sealed class ClaimService(ClaimWiseDbContext db, TimeProvider clock, ILog
         claim.UpdatedAt = now;
         claim.Version++;
 
+        // Make AI involvement explicit in the audit trail of a decision: which summaries a person reviewed first.
+        var reviewedSummaries = to is ClaimStatus.Approved or ClaimStatus.Rejected
+            ? await db.AiSummaries.AsNoTracking()
+                .Where(s => s.ClaimId == claim.Id && (s.ReviewState == SummaryReviewState.Accepted || s.ReviewState == SummaryReviewState.Rejected))
+                .OrderBy(s => s.Id).Select(s => $"#{s.Id} {s.ReviewState}").ToListAsync(ct)
+            : [];
+        var aiNote = reviewedSummaries.Count > 0 ? $" [AI summaries reviewed by a person before this decision: {string.Join(", ", reviewedSummaries)}]" : "";
+
         db.AuditEntries.Add(new AuditEntry
         {
             ClaimId = claim.Id,
             Action = "StatusChanged",
-            Details = note is null ? $"{from} -> {to}" : $"{from} -> {to}. Note: {note}",
+            Details = (note is null ? $"{from} -> {to}" : $"{from} -> {to}. Note: {note}") + aiNote,
             Actor = reviewer,
             Timestamp = now
         });

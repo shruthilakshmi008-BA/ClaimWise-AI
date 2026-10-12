@@ -39,7 +39,9 @@ public sealed class EvidenceAssessor(EvidenceOptions? options = null)
         var top = passages.Max(p => p.Retrieved.RerankScore);
         var supporting = passages.Where(p => p.Retrieved.RerankScore >= _o.SupportThreshold).ToList();
 
-        var queryTerms = TextAnalysis.Terms(query).Select(DomainSynonyms.Fold).Distinct().ToList();
+        // Identifier-like terms (procedure/diagnosis codes) sharpen ranking but are not what the question is about:
+        // a code missing from the policies must not, on its own, make a well-covered topic look unsupported.
+        var queryTerms = TextAnalysis.Terms(query).Select(DomainSynonyms.Fold).Where(t => !TextAnalysis.IsCode(t)).Distinct().ToList();
         var union = supporting
             .SelectMany(p => TextAnalysis.Terms(p.Chunk.IndexText).Select(DomainSynonyms.Fold))
             .ToHashSet();

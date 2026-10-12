@@ -22,6 +22,210 @@ namespace ClaimWise.Api.Data.Migrations.Postgres
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AbstainReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("AssessmentJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ClaimId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClaimVersionAtGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ConflictsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EmbeddingModel")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("GeneratorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("RejectedJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RetrievalQuery")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ReviewState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("WarningsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaimId", "GeneratedAt");
+
+                    b.ToTable("AiSummaries");
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryPassage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChunkId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ClauseRef")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("DocumentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DocumentTitle")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DocumentVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Heading")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<double?>("KeywordScore")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("RerankScore")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("SectionPath")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<int>("SummaryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<double?>("VectorScore")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SummaryId");
+
+                    b.ToTable("AiSummaryPassages");
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryStatementRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CitationsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int>("SummaryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SummaryId");
+
+                    b.ToTable("AiSummaryStatements", (string)null);
+                });
+
             modelBuilder.Entity("ClaimWise.Api.Domain.AuditEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -299,6 +503,33 @@ namespace ClaimWise.Api.Data.Migrations.Postgres
                     b.ToTable("PolicyDocuments");
                 });
 
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.Claim", null)
+                        .WithMany()
+                        .HasForeignKey("ClaimId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryPassage", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.AiSummary", null)
+                        .WithMany("Passages")
+                        .HasForeignKey("SummaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummaryStatementRecord", b =>
+                {
+                    b.HasOne("ClaimWise.Api.Domain.AiSummary", null)
+                        .WithMany("Statements")
+                        .HasForeignKey("SummaryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ClaimWise.Api.Domain.AuditEntry", b =>
                 {
                     b.HasOne("ClaimWise.Api.Domain.Claim", null)
@@ -324,6 +555,13 @@ namespace ClaimWise.Api.Data.Migrations.Postgres
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ClaimWise.Api.Domain.AiSummary", b =>
+                {
+                    b.Navigation("Passages");
+
+                    b.Navigation("Statements");
                 });
 
             modelBuilder.Entity("ClaimWise.Api.Domain.Claim", b =>
