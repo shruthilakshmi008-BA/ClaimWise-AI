@@ -1,0 +1,11 @@
+.git
+.vs
+**/bin/
+**/obj/
+web/node_modules/
+web/dist/
+.env
+claimwise-backup.dump
+**/claimwise.db
+**/claim-files/
+docker-data/

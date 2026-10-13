@@ -1,10 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClaimWise.Api</RootNamespace>
+    <UserSecretsId>09cbfd1d-ba18-46cd-a5d3-801417d8ab79</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

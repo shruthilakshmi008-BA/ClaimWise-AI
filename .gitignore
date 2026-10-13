@@ -30,3 +30,8 @@ claim-files/
 
 # e2e screenshots
 e2e/screenshots/
+
+claimwise-backup.dump
+.env
+.env.*
+!.env.example
